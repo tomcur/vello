@@ -4,7 +4,7 @@
 //! Generating and processing wide tiles.
 
 use crate::color::{AlphaColor, Srgb};
-use crate::strip::{STRIP_HEIGHT, Strip};
+use crate::strip::{Strip, STRIP_HEIGHT};
 use vello_api::paint::Paint;
 use vello_api::peniko::Fill;
 
@@ -154,7 +154,7 @@ impl Wide {
                 && next_strip.x >= 0
             {
                 x = x1;
-                let x2 = next_strip.x as u32;
+                let x2 = (next_strip.x as u32).min(self.width as u32);
                 let fxt0 = x1 as usize / WIDE_TILE_WIDTH;
                 let fxt1 = (x2 as usize).div_ceil(WIDE_TILE_WIDTH);
                 for tile_x in fxt0..fxt1 {

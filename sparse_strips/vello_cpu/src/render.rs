@@ -176,7 +176,8 @@ impl RenderContext {
     // Assumes that `line_buf` contains the flattened path.
     fn render_path(&mut self, fill_rule: Fill, paint: Paint) {
         let mut start = std::time::Instant::now();
-        self.tiles.make_tiles(&self.line_buf);
+        self.tiles
+            .make_tiles(&self.line_buf, self.width as u16, self.height as u16);
         self.tile_generation_elapsed += start.elapsed();
 
         start = std::time::Instant::now();
@@ -189,6 +190,7 @@ impl RenderContext {
             &mut self.strip_buf,
             &mut self.alphas,
             fill_rule,
+            &self.line_buf,
         );
         self.strip_generation_elapsed += start.elapsed();
 
