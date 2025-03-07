@@ -17,8 +17,13 @@ peniko = { workspace = true }
 vello_common = { workspace = true }
 
 [dev-dependencies]
+vello_api = { workspace = true }
+
 oxipng = { workspace = true, features = ["freestanding", "parallel"] }
 image = { workspace = true, features = ["png"] }
+
+# for pico_svg
+roxmltree = "0.20.0"
 
 [lints]
 workspace = true
