@@ -5,7 +5,7 @@
 
 use peniko::Fill;
 
-use crate::flatten::Point;
+use crate::flatten::{Line, Point};
 use crate::tile::{Tile, Tiles};
 
 // Note that this will probably disappear and be turned into a const generic in the future.
@@ -32,6 +32,7 @@ impl Strip {
     }
 }
 
+#[inline(never)]
 /// Render the tiles stored in `tiles` into the strip and alpha buffer.
 /// The strip buffer will be cleared in the beginning.
 pub fn render(
@@ -39,6 +40,7 @@ pub fn render(
     strip_buf: &mut Vec<Strip>,
     alpha_buf: &mut Vec<u32>,
     fill_rule: Fill,
+    lines: &[Line],
 ) {
     strip_buf.clear();
 
@@ -64,8 +66,7 @@ pub fn render(
     const SENTINEL: Tile = Tile {
         x: i32::MAX,
         y: u16::MAX,
-        p0: Point::ZERO,
-        p1: Point::ZERO,
+        line_idx: 0,
     };
 
     // The strip we're building.
@@ -77,6 +78,14 @@ pub fn render(
     };
 
     for tile in tiles.iter().copied().chain([SENTINEL]) {
+        let line = lines[tile.line_idx as usize];
+        let tile_left_x = tile.x as f32 * Tile::WIDTH as f32;
+        let tile_top_y = tile.y as f32 * Tile::HEIGHT as f32;
+        let p0_x = line.p0.x - tile_left_x;
+        let p0_y = line.p0.y - tile_top_y;
+        let p1_x = line.p1.x - tile_left_x;
+        let p1_y = line.p1.y - tile_top_y;
+
         // Push out the winding as an alpha mask when we move to the next location (i.e., a tile
         // without the same location).
         if !prev_tile.same_loc(&tile) {
@@ -108,6 +117,11 @@ pub fn render(
                 }
             };
 
+            if !prev_tile.same_row(&tile) {
+                winding_delta = 0;
+                accumulated_winding.fill(0.);
+            }
+
             #[expect(clippy::needless_range_loop, reason = "dimension clarity")]
             for x in 0..Tile::WIDTH as usize {
                 location_winding[x] = accumulated_winding;
@@ -116,10 +130,6 @@ pub fn render(
 
         // Push out the strip if we're moving to a next strip.
         if !prev_tile.same_loc(&tile) && !prev_tile.prev_loc(&tile) {
-            if !prev_tile.same_row(&tile) {
-                winding_delta = 0;
-            }
-
             debug_assert_eq!(
                 (prev_tile.x + 1) * Tile::WIDTH as i32 - strip.x,
                 alpha_buf.len() as i32 - strip.col as i32,
@@ -150,23 +160,15 @@ pub fn render(
         }
         prev_tile = tile;
 
-        // TODO: lines are currently still packed into tiles. This will probably change, in which
-        // case we will have to translate the lines to have the tile's top-left corner as origin.
-        // let line = lines[tile.line_idx as usize];
-        let p0_x = tile.p0.x; // - tile_left_x;
-        let p0_y = tile.p0.y; // - tile_top_y;
-        let p1_x = tile.p1.x; // - tile_left_x;
-        let p1_y = tile.p1.y; // - tile_top_y;
-
         // TODO: horizontal geometry has no impact on winding. This branch will be removed when
         // horizontal geometry is culled at the tile-generation stage.
-        if p0_y == p1_y {
+        if line.p0.y == line.p1.y {
             continue;
         }
 
         // Lines moving upwards (in a y-down coordinate system) add to winding; lines moving
         // downwards subtract from winding.
-        let sign = (p0_y - p1_y).signum();
+        let sign = (line.p0.y - line.p1.y).signum();
 
         // Calculate winding / pixel area coverage.
         //
@@ -198,29 +200,53 @@ pub fn render(
         //     *
         //    *
 
-        let (line_top_y, line_top_x, line_bottom_y, line_bottom_x) = if p0_y < p1_y {
-            (p0_y, p0_x, p1_y, p1_x)
+        let (line_top_y, line_bottom_y) = if line.p0.y < line.p1.y {
+            (p0_y, p1_y)
         } else {
-            (p1_y, p1_x, p0_y, p0_x)
+            (p1_y, p0_y)
         };
 
-        let y_slope = (line_bottom_y - line_top_y) / (line_bottom_x - line_top_x);
+        let (line_left_x, line_left_y, line_right_x, line_right_y) = if line.p0.x < line.p1.x {
+            (p0_x, p0_y, p1_x, p1_y)
+        } else {
+            (p1_x, p1_y, p0_x, p0_y)
+        };
+
+        let y_slope = (line_right_y - line_left_y) / (line_right_x - line_left_x);
         let x_slope = 1. / y_slope;
 
-        {
-            // The y-coordinate of the intersections between line and the tile's left and right
-            // edges respectively.
-            //
-            // There's some subtety going on here, see the note on `line_px_left_y` below.
-            let line_tile_left_y = (line_top_y - line_top_x * y_slope)
-                .max(line_top_y)
-                .min(line_bottom_y);
-            let line_tile_right_y = (line_top_y + (Tile::WIDTH as f32 - line_top_x) * y_slope)
-                .max(line_top_y)
-                .min(line_bottom_y);
+        // The y-coordinate of the intersections between the line and the tile's left and right
+        // edges respectively.
+        //
+        // There's some subtlety going on here, see the note on `line_px_left_y` below.
+        let line_tile_left_y = (line_left_y - line_left_x * y_slope)
+            .max(line_top_y)
+            .min(line_bottom_y);
+        let line_tile_right_y = (line_left_y + (Tile::WIDTH as f32 - line_left_x) * y_slope)
+            .max(line_top_y)
+            .min(line_bottom_y);
 
+        if tile.x == 0 {
             winding_delta +=
-                sign as i32 * ((line_tile_left_y <= 0.) != (line_tile_right_y <= 0.)) as i32;
+                sign as i32 * (line_left_y.signum() != line_tile_right_y.signum()) as i32;
+
+            for y_idx in 0..Tile::HEIGHT {
+                let px_top_y = y_idx as f32;
+                let px_bottom_y = 1. + y_idx as f32;
+
+                let dy = (line_tile_left_y.max(px_top_y).min(px_bottom_y)
+                    - line_left_y.max(px_top_y).min(px_bottom_y))
+                .abs()
+                    * sign
+                    * (tile.x == 0) as u8 as f32;
+                accumulated_winding[y_idx as usize] += dy;
+                for x in 0..Tile::WIDTH {
+                    location_winding[x as usize][y_idx as usize] += dy;
+                }
+            }
+        } else {
+            winding_delta +=
+                sign as i32 * ((line_tile_left_y.signum()) != (line_tile_right_y.signum())) as i32;
         }
 
         for y_idx in 0..Tile::HEIGHT {
@@ -246,18 +272,17 @@ pub fn render(
                 // (from the viewport's coordinate system perspective). The `min` and `max`
                 // y-clamping logic generalizes nicely, as a pixel edge to the left of the line is
                 // clamped to `ymin`, and a pixel edge to the right is clamped to `ymax`.
-                let line_px_left_y = (line_top_y + (px_left_x - line_top_x) * y_slope)
+                let line_px_left_y = (line_left_y + (px_left_x - line_left_x) * y_slope)
                     .max(ymin)
                     .min(ymax);
-                let line_px_right_y = (line_top_y + (px_right_x - line_top_x) * y_slope)
+                let line_px_right_y = (line_left_y + (px_right_x - line_left_x) * y_slope)
                     .max(ymin)
                     .min(ymax);
 
                 // `x_slope` is always finite, as horizontal geometry is elided.
-                let line_px_left_yx = line_top_x + (line_px_left_y - line_top_y) * x_slope;
-                let line_px_right_yx = line_top_x + (line_px_right_y - line_top_y) * x_slope;
+                let line_px_left_yx = line_left_x + (line_px_left_y - line_left_y) * x_slope;
+                let line_px_right_yx = line_left_x + (line_px_right_y - line_left_y) * x_slope;
                 let h = (line_px_right_y - line_px_left_y).abs();
-
                 // The trapezoidal area enclosed between the line and the right edge of the pixel
                 // square.
                 let area = 0.5 * h * (2. * px_right_x - line_px_right_yx - line_px_left_yx);

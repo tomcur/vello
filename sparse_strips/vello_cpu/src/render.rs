@@ -175,6 +175,7 @@ impl RenderContext {
             &mut self.strip_buf,
             &mut self.alphas,
             fill_rule,
+            &self.line_buf,
         );
 
         self.wide.generate(&self.strip_buf, fill_rule, paint);
