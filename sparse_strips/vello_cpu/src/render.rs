@@ -33,6 +33,10 @@ pub struct RenderContext {
     pub(crate) transform: Affine,
     pub(crate) fill_rule: Fill,
     pub(crate) blend_mode: BlendMode,
+
+    pub tile_generation_elapsed: std::time::Duration,
+    pub tile_sorting_elapsed: std::time::Duration,
+    pub strip_generation_elapsed: std::time::Duration,
 }
 
 impl RenderContext {
@@ -71,6 +75,10 @@ impl RenderContext {
             fill_rule,
             stroke,
             blend_mode,
+
+            tile_generation_elapsed: std::time::Duration::ZERO,
+            tile_sorting_elapsed: std::time::Duration::ZERO,
+            strip_generation_elapsed: std::time::Duration::ZERO,
         }
     }
 
@@ -167,15 +175,22 @@ impl RenderContext {
 
     // Assumes that `line_buf` contains the flattened path.
     fn render_path(&mut self, fill_rule: Fill, paint: Paint) {
+        let mut start = std::time::Instant::now();
         self.tiles.make_tiles(&self.line_buf);
-        self.tiles.sort_tiles();
+        self.tile_generation_elapsed += start.elapsed();
 
+        start = std::time::Instant::now();
+        self.tiles.sort_tiles();
+        self.tile_sorting_elapsed += start.elapsed();
+
+        start = std::time::Instant::now();
         strip::render(
             &self.tiles,
             &mut self.strip_buf,
             &mut self.alphas,
             fill_rule,
         );
+        self.strip_generation_elapsed += start.elapsed();
 
         self.wide.generate(&self.strip_buf, fill_rule, paint);
     }
