@@ -441,6 +441,9 @@ name = "color"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61c387f6cef110ee8eaf12fca5586d3d303c07c594f4a5f02c768b6470b70dbd"
+dependencies = [
+ "bytemuck",
+]
 
 [[package]]
 name = "colorchoice"
@@ -1761,6 +1764,7 @@ version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ec061f435b573ff602b2c5690f1a5bfcf461327194654cfbfce4412b95cf2a1"
 dependencies = [
+ "bytemuck",
  "color",
  "kurbo",
  "smallvec",
@@ -2705,6 +2709,8 @@ dependencies = [
  "kurbo",
  "oxipng",
  "peniko",
+ "roxmltree",
+ "vello_api",
  "vello_common",
 ]
 
@@ -2722,6 +2728,14 @@ dependencies = [
 [[package]]
 name = "vello_hybrid"
 version = "0.4.0"
+dependencies = [
+ "bytemuck",
+ "peniko",
+ "pollster",
+ "vello_api",
+ "vello_common",
+ "wgpu",
+]
 
 [[package]]
 name = "vello_shaders"
