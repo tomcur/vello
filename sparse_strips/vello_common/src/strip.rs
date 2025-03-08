@@ -323,3 +323,28 @@ pub fn render(
         }
     }
 }
+
+trait QuickMinMax {
+    fn quickmin(self, b: Self) -> Self;
+    fn quickmax(self, b: Self) -> Self;
+}
+
+impl QuickMinMax for f32 {
+    #[inline]
+    fn quickmin(self: f32, other: f32) -> f32 {
+        if self < other {
+            self
+        } else {
+            other
+        }
+    }
+
+    #[inline]
+    fn quickmax(self: f32, other: f32) -> f32 {
+        if self > other {
+            self
+        } else {
+            other
+        }
+    }
+}
