@@ -139,9 +139,16 @@ impl<'a> ColrPainter<'a> {
         // The COLR spec has the very specific requirement that if there are multiple stops with the
         // offset 1.0, only the last one should be used. We abstract this away by removing all such
         // superfluous stops.
-        while let Some(stop) = stops.get(stops.len() - 2).map(|s| s.offset) {
-            if (stop - 1.0).is_nearly_zero() {
-                stops.remove(stops.len() - 2);
+        // while let Some(stop) = stops.get(stops.len() - 2).map(|s| s.offset) {
+        //     if (stop - 1.0).is_nearly_zero() {
+        //         stops.remove(stops.len() - 2);
+        //     } else {
+        //         break;
+        //     }
+        // }
+        while let Some(stop) = stops.get(1).map(|s| s.offset) {
+            if (stop - 0.0).is_nearly_zero() {
+                stops.remove(1);
             } else {
                 break;
             }
@@ -313,11 +320,9 @@ impl ColorPainter for ColrPainter<'_> {
                     }
                 }
 
-                // We need to invert the direction of the gradient to bridge the gap between
-                // peniko and COLR.
                 let grad = Gradient {
                     kind: GradientKind::Sweep {
-                        center: Point::new(p0.x, -p0.y),
+                        center: p0,
                         start_angle,
                         end_angle,
                     },
@@ -326,9 +331,7 @@ impl ColorPainter for ColrPainter<'_> {
                     ..Default::default()
                 };
 
-                let paint_transform = self.cur_transform() * Affine::scale_non_uniform(1.0, -1.0);
-
-                self.painter.set_paint_transform(paint_transform);
+                self.painter.set_paint_transform(self.cur_transform());
                 self.painter.fill_gradient(grad);
             }
         };
