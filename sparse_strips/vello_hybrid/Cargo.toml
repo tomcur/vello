@@ -43,7 +43,9 @@ web-sys = { version = "0.3.91", features = [
 [dev-dependencies]
 png = { workspace = true }
 pollster = { workspace = true }
+skrifa = { workspace = true }
 vello_common = { workspace = true, features = ["pico_svg"] }
+vello_cpu = { workspace = true }
 roxmltree = "0.20.0"
 
 [features]
@@ -65,4 +67,16 @@ workspace = true
 
 [[example]]
 name = "render_to_file"
+required-features = ["wgpu"]
+
+[[example]]
+name = "generate_glyph_pair_atlas"
+required-features = ["text"]
+
+[[example]]
+name = "bench_glyph_pairs"
+required-features = ["wgpu", "text"]
+
+[[example]]
+name = "texture_rects"
 required-features = ["wgpu"]
